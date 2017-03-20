@@ -13,6 +13,26 @@ from keras.optimizers import SGD
 from keras.layers.core import Lambda
 
 from code.loading import *
+from keras.engine.topology import Layer
+
+class LearnedRandomProjection(Layer):
+
+    def __init__(self, output_dim, **kwargs):
+        self.output_dim = output_dim
+        super(MyLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        # Create a trainable weight variable for this layer.
+        self.kernel = self.add_weight(shape=(input_shape[1], self.output_dim),
+                                      initializer='uniform',
+                                      trainable=True)
+        super(MyLayer, self).build(input_shape)  # Be sure to call this somewhere!
+
+    def call(self, x):
+        return K.dot(x, self.kernel)
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.output_dim)
 
 def upsample_hlist(exclude=[]):
     def upsample(input_list):
@@ -78,7 +98,7 @@ def dense_hc_model(nclasses=5,sampling_rate=500):
         layer.border_mode = 'same'
         if index in indices:
             X = layer(X)
-            output = Convolution2D(16,3,3,border_mode='same')(X)
+            output = Convolution2D(64,1,1,border_mode='same')(X)
             output_list.append(output)
         else:
             X = layer(X)
