@@ -13,8 +13,6 @@ from keras.optimizers import SGD
 from keras.layers.core import Lambda
 
 from code.loading import *
-#import theano
-#theano.config.compute_test_value = 'warn'
 
 def upsample_hlist(exclude=[]):
     def upsample(input_list):
@@ -28,7 +26,6 @@ def upsample_hlist(exclude=[]):
                 shape = input_list[index-1].shape
                 output = output[:,:,:shape[2],:shape[3]]
                 index -= 1
-            #print(output.tag.test_value.shape)\
             if i not in exclude:
                 output_list.append(output)
         return K.concatenate(output_list,axis=1)
@@ -50,10 +47,11 @@ def im_flatten_shape(shape):
     return (shape[2]*shape[3],shape[1])
 
 def random_sample(sampling_rate,length=312180):
+    rng_state = np.random.get_state()
+    choices = np.random.choice(range(length),sampling_rate,replace=False)
     def sample(x):
-        choices = np.random.choice(range(length),sampling_rate,replace=False)
         return x[choices]
-    return sample
+    return sample,choices
 
 def random_sample_shape(sampling_rate):
     def sample_shape(shape):
@@ -66,9 +64,8 @@ def expand_dims(x):
 def expand_dims_shape(shape):
     return (1,shape[0],shape[1])
 
-def dense_hc_model(nclasses=4,sampling_rate=500):
+def dense_hc_model(nclasses=5,sampling_rate=500):
     inputs = Input(batch_shape=(1,3,484,645))
-    #inputs.tag.test_value = np.random.randint(0,3,(1,3,484,645)).astype('float32')
     vgg = VGG16(weights='imagenet', include_top=False)
     vgg.layers = vgg.layers[1:]
     X = vgg.layers[0](inputs)
@@ -87,17 +84,16 @@ def dense_hc_model(nclasses=4,sampling_rate=500):
             X = layer(X)
 
     X = Lambda(upsample_hlist(),output_shape=upsample_hlist_output_shape())(output_list)
-    #theano.config.print_test_value(X)
     X = Lambda(im_flatten,output_shape=im_flatten_shape)(X)
-    #theano.config.print_test_value(X)
-    #X = Lambda(random_sample(sampling_rate),output_shape=random_sample_shape(sampling_rate))(X)
+    sampling_function = random_sample()
+    X = Lambda(random_sample(sampling_rate),output_shape=random_sample_shape(sampling_rate))(X)
     X = Dense(80,activation='relu')(X)
     X = Dropout(0.25)(X)
     X = Dense(40,activation='relu')(X)
     X = Dense(nclasses,activation='softmax')(X)
     output = Lambda(expand_dims,output_shape=expand_dims_shape)(X)
     model = Model(input=inputs,output=output)
-    sgd = SGD(lr=0.0001, decay=0.01)
+    sgd = SGD(lr=0.1, decay=0.0001)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
     print(model.summary())
     return model
@@ -127,7 +123,7 @@ def full_conv_model(nclasses):
     X = Dropout(0.25)(X)
     output = Convolution2D(nclasses,3,3,activation='softmax',border_mode='same')(X)
     model = Model(input=inputs,output=output)
-    sgd = SGD(lr=0.01, decay=0.001)
+    sgd = SGD(lr=0.01, decay=0.0001)
     model.compile(optimizer=sgd, loss='binary_crossentropy', metrics=['accuracy'])
     print(model.summary())
     return model

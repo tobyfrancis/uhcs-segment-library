@@ -20,12 +20,13 @@ def pre_process(image,color=False):
 
 def one_hot_encode(labels):
     l = labels.flatten()
-    if set(l) != {0,1,2,3}:
+    l[l==-1] = 4
+    if set(l) != {0,1,2,3,4}:
         l[l==85] = 1
         l[l==170] = 2
         l[l==255] = 3
     shape = labels.shape
-    n_values = 4
+    n_values = 5
     one_hot = np.eye(n_values)[l]
     return one_hot.reshape(shape[0],shape[1],n_values)
 
@@ -50,7 +51,8 @@ def dense_generator(datagen):
         image,labels = load_batch()
         shape = labels.shape
         rng_state = np.random.get_state()
-        datagen.random_transform(np.expand_dims(labels,axis=0))[0]
+        labels = datagen.random_transform(np.expand_dims(labels,axis=0))[0]
+        '''
         top = [index for index,label in enumerate(labels[0]) if label !=-1]
         topleft = top[0]
         topright = top[-1]
@@ -59,14 +61,17 @@ def dense_generator(datagen):
         bottomright = bottom[-1]
         left,right = max(bottomleft,topleft),min(bottomright,topright)
         labels = imresize(labels[:,left:right],shape,interp='nearest')
+        '''
         labels = one_hot_encode(labels)
         labels = labels.reshape(-1,labels.shape[-1])
         labels = np.expand_dims(labels,axis=0)
 
         np.random.set_state(rng_state)
         shape = image.shape
-        datagen.random_transform(image)
+        image = datagen.random_transform(image)
+        '''
         image = imresize(image[:,left:right],shape,interp='nearest')
+        '''
         image = np.array(image).astype(float)
         image = pre_process(image).transpose(2,0,1)
         image = np.expand_dims(image,axis=0)
